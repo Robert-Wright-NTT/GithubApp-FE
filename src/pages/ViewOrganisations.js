@@ -1,69 +1,202 @@
-import React, { useContext } from "react";
+import * as React from "react";
+import { Box, Button, Container } from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/DeleteOutlined";
+import SaveIcon from "@mui/icons-material/Save";
+import CancelIcon from "@mui/icons-material/Close";
 import {
-  Button,
-  Grid2,
-  Container,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
-} from "@mui/material";
-import { useNavigate } from "react-router-dom";
-import { OrganisationsProvider } from "../contexts/OrganisationsContext";
-import { OrganisationContext } from "../contexts/OrganisationsContext";
+  GridRowModes,
+  DataGrid,
+  GridToolbarContainer,
+  GridActionsCellItem,
+  GridRowEditStopReasons,
+} from "@mui/x-data-grid";
+import { randomId } from "@mui/x-data-grid-generator";
 
-export default function ViewOrganisations() {
-  const navigate = useNavigate();
+const initialRows = [
+  {
+    id: 1,
+    organisation: "UK NTT",
+    country: "UK",
+  },
+  {
+    id: 2,
+    organisation: "LATAM",
+    country: "Mexico",
+  },
+  {
+    id: 3,
+    organisation: "North America",
+    country: "Canada",
+  },
+];
 
-  const organisations = useContext(OrganisationContext);
+function EditToolbar(props) {
+  const { setRows, setRowModesModel } = props;
 
-  const handleHomeButton = () => {
-    navigate("/main");
+  const handleClick = () => {
+    const id = randomId();
+    setRows((oldRows) => [
+      ...oldRows,
+      { id, organisation: "", country: "", isNew: true },
+    ]);
+    setRowModesModel((oldModel) => ({
+      ...oldModel,
+      [id]: { mode: GridRowModes.Edit, fieldToFocus: "organisation" },
+    }));
   };
 
-  const handleRaiseRequest = () => {
-    navigate("");
+  return (
+    <GridToolbarContainer>
+      <Button color="primary" startIcon={<AddIcon />} onClick={handleClick}>
+        Add record
+      </Button>
+    </GridToolbarContainer>
+  );
+}
+
+export default function FullFeaturedCrudGrid() {
+  const [rows, setRows] = React.useState(initialRows);
+  const [rowModesModel, setRowModesModel] = React.useState({});
+
+  const handleRowEditStop = (params, event) => {
+    if (params.reason === GridRowEditStopReasons.rowFocusOut) {
+      event.defaultMuiPrevented = true;
+    }
   };
+
+  const handleEditClick = (id) => () => {
+    setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.Edit } });
+  };
+
+  const handleSaveClick = (id) => () => {
+    setRowModesModel({ ...rowModesModel, [id]: { mode: GridRowModes.View } });
+  };
+
+  const handleDeleteClick = (id) => () => {
+    setRows(rows.filter((row) => row.id !== id));
+  };
+
+  const handleCancelClick = (id) => () => {
+    setRowModesModel({
+      ...rowModesModel,
+      [id]: { mode: GridRowModes.View, ignoreModifications: true },
+    });
+
+    const editedRow = rows.find((row) => row.id === id);
+    if (editedRow.isNew) {
+      setRows(rows.filter((row) => row.id !== id));
+    }
+  };
+
+  const processRowUpdate = (newRow) => {
+    const updatedRow = { ...newRow, isNew: false };
+    setRows(rows.map((row) => (row.id === newRow.id ? updatedRow : row)));
+    return updatedRow;
+  };
+
+  const handleRowModesModelChange = (newRowModesModel) => {
+    setRowModesModel(newRowModesModel);
+  };
+
+  const columns = [
+    {
+      field: "organisation",
+      headerName: "Organisation",
+      width: 220,
+      editable: true,
+      align: "center",
+    },
+    {
+      field: "country",
+      headerName: "Country",
+      width: 220,
+      editable: true,
+      align: "center",
+    },
+    {
+      field: "actions",
+      type: "actions",
+      headerName: "Actions",
+      width: 100,
+      cellClassName: "actions",
+      getActions: ({ id }) => {
+        const isInEditMode = rowModesModel[id]?.mode === GridRowModes.Edit;
+
+        if (isInEditMode) {
+          return [
+            <GridActionsCellItem
+              icon={<SaveIcon />}
+              label="Save"
+              sx={{
+                color: "primary.main",
+              }}
+              onClick={handleSaveClick(id)}
+            />,
+            <GridActionsCellItem
+              icon={<CancelIcon />}
+              label="Cancel"
+              className="textPrimary"
+              onClick={handleCancelClick(id)}
+              color="inherit"
+            />,
+          ];
+        }
+
+        return [
+          <GridActionsCellItem
+            icon={<EditIcon />}
+            label="Edit"
+            className="textPrimary"
+            onClick={handleEditClick(id)}
+            color="inherit"
+          />,
+          <GridActionsCellItem
+            icon={<DeleteIcon />}
+            label="Delete"
+            onClick={handleDeleteClick(id)}
+            color="inherit"
+          />,
+        ];
+      },
+    },
+  ];
 
   return (
     <div>
       <h1>View Organisations</h1>
-
-      <Container maxWidth="sm">
-        <Grid2 container rowSpacing={1} columnSpacing={30}>
-          <Grid2 size={2}>
-            <Button variant="contained" onClick={handleHomeButton}>
-              Home
-            </Button>
-          </Grid2>
-          <Grid2>
-            <Button variant="contained" onClick={handleRaiseRequest}>
-              Raise a request
-            </Button>
-          </Grid2>
-        </Grid2>
+      <Container maxWidth="md">
+        <Box
+          sx={{
+            height: 350,
+            width: "100%",
+            "& .actions": {
+              color: "text.secondary",
+            },
+            "& .textPrimary": {
+              color: "text.primary",
+            },
+          }}
+        >
+          <DataGrid
+            rows={rows}
+            columns={columns}
+            editMode="row"
+            rowModesModel={rowModesModel}
+            onRowModesModelChange={handleRowModesModelChange}
+            onRowEditStop={handleRowEditStop}
+            processRowUpdate={processRowUpdate}
+            slots={{
+              toolbar: EditToolbar,
+            }}
+            slotProps={{
+              toolbar: { setRows, setRowModesModel },
+            }}
+            align="center"
+          />
+        </Box>
       </Container>
-      <TableContainer component={Paper}>
-        <Table sx={{ minWidth: 650 }} aria-label="simple table">
-          <TableHead>
-            <TableRow>
-              <TableCell>Organisation</TableCell>
-              <TableCell>Country</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {organisations.map((organisation) => (
-              <TableRow key={organisation.id}>
-                <TableCell align="right">{organisation.name}</TableCell>
-                <TableCell align="right">{organisation.country}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
     </div>
   );
 }
